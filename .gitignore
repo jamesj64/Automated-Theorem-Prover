@@ -2,3 +2,4 @@ obj/
 .ionide/
 bin/
 config.json
+.fake

@@ -44,24 +44,6 @@ module FrostyProver =
         | Not(Atom str) -> str + ": false"
         | _ -> failwith "not a literal"
 
-    let generateCounterModel (proof: Line list) =
-        let atoms =
-            List.fold (fun x (y,_,_,_) -> x + atomsFromFormula y) Set.empty proof
-        let closers = List.map (fun (_,_,_,l) -> l) (List.filter isCloser proof)
-        let provedLiterals =
-            Set.ofList
-            <| List.map fst
-                (List.filter (function
-                    | Atom _, l | Not (Atom _), l -> not (List.contains l closers)
-                    | _ -> false) 
-                    (List.map (fun (f,_,_,l) -> f, l) proof))
-        let irrelevantAtoms = atoms - Set.map (function
-            | Atom _ as p -> p
-            | Not(Atom str) -> Atom str
-            | _ -> failwith "never called") provedLiterals
-        let counterModel = provedLiterals + (Set.map Not irrelevantAtoms)
-        Set.fold (fun x y -> x + "\n" + printLiteralTruth y) "" counterModel
-
     let getTypeOfFormula (formula: Formula) =
         match formula with
         | Implies _ -> "Implies"
@@ -268,8 +250,6 @@ module FrostyProver =
                             let inspireForm, inspireLine, _, _ = inspireAIPLine
                             if getTypeOfFormula inspireForm = "Implies" then 
                                 let newLines =  [Line(And(otherConj, p), ln, CCONTRA(otherLine, pln), level); Line(Not(assumption), ln + 1, IP(al, ln), newLevel); Line(nonNegatedForm assumption, ln + 2, DN(ln + 1), newLevel); Line(snd(decompBinaryForm inspireForm), ln + 3, MP(inspireLine, ln + 2), newLevel)]
-                                //cp used proof level assumptionsAtLevel
-                                //let newUsedLines = [Line(And(otherConj, p), ln, CCONTRA(otherLine, ln - 1), level)]
                                 let newUsed = (List.filter (fun (x, _) -> x <> line) used) @ [line, (((listToFunc used) line) @ [level])] @ List.map (fun x -> x, []) newLines
                                 cp newUsed (proof @ newLines) newLevel newAssumptionsAtLevel
                             else
@@ -305,6 +285,3 @@ module FrostyProver =
                 | _ -> failwith "never called") provedLiterals
             let counterModel = provedLiterals + (Set.map Not irrelevantAtoms)
             Set.fold (fun x y -> x + "\n" + printLiteralTruth y) "Countermodel: " counterModel
-        //printfn "%A" (generateCounterModel proof)
-        //proof, true
-        //printProof proof
