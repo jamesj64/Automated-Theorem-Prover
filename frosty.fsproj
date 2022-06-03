@@ -10,7 +10,6 @@
     <Compile Include="Parser.fs" />
     <Compile Include="FrostyProver.fs" />
     <Compile Include="Commands.fs" />
-    <Compile Include="CounterModel.fs" />
     <Compile Include="Program.fs" />
   </ItemGroup>
 

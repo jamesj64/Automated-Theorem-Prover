@@ -41,7 +41,7 @@ type FrostyCommands() =
     member private self.prove (ctx: CommandContext, formula: string) = async {
         do! ctx.TriggerTypingAsync() |> Async.AwaitTask
         try
-            let response = (splitPremisesChar >> firstAndLast >> (fun (x,y) -> prove y x) >> stringifyProof) formula
+            let response = (splitPremisesChar >> firstAndLast >> (fun (x,y) -> prove y x)) formula
             if response.Length > 2000 then
                 do! ctx.RespondAsync("Valid. Proof too long to send.") |> Async.AwaitTask |> Async.Ignore
             else

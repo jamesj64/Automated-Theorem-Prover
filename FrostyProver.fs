@@ -21,9 +21,46 @@ module FrostyProver =
 
     type Line = Formula * int * Inference * (int * int)
 
+    let isCloser (line: Line) =
+        let _, _, inference, _ = line 
+        match inference with
+        | CCONTRA _ -> true
+        | _ -> false
+
     let listToFunc (s: List<'a * 'b>) (x: 'a) =
         let myList: List<'b> = List.map snd (List.filter (fun y -> fst y = x) s)
         if myList.Length = 1 then myList.Head else failwith "Not a function or input outside of function's domain"
+
+    let rec atomsFromFormula (formula: Formula) =
+        match formula with
+        | Atom _ as p -> Set.singleton p
+        | Not p -> atomsFromFormula p
+        | Implies(p, q) | And(p, q) | Or(p, q) | Iff(p, q) ->
+            atomsFromFormula p + atomsFromFormula q
+
+    let printLiteralTruth =
+        function
+        | Atom str -> str + ": true"
+        | Not(Atom str) -> str + ": false"
+        | _ -> failwith "not a literal"
+
+    let generateCounterModel (proof: Line list) =
+        let atoms =
+            List.fold (fun x (y,_,_,_) -> x + atomsFromFormula y) Set.empty proof
+        let closers = List.map (fun (_,_,_,l) -> l) (List.filter isCloser proof)
+        let provedLiterals =
+            Set.ofList
+            <| List.map fst
+                (List.filter (function
+                    | Atom _, l | Not (Atom _), l -> not (List.contains l closers)
+                    | _ -> false) 
+                    (List.map (fun (f,_,_,l) -> f, l) proof))
+        let irrelevantAtoms = atoms - Set.map (function
+            | Atom _ as p -> p
+            | Not(Atom str) -> Atom str
+            | _ -> failwith "never called") provedLiterals
+        let counterModel = provedLiterals + (Set.map Not irrelevantAtoms)
+        Set.fold (fun x y -> x + "\n" + printLiteralTruth y) "" counterModel
 
     let getTypeOfFormula (formula: Formula) =
         match formula with
@@ -73,7 +110,6 @@ module FrostyProver =
         | _ -> ()
 
     let stringifyProof (proof: Line list) =
-        if proof = [] then "Invalid" else
         let rec mainStringProof (proof: Line list) =
             match proof with
             | (formula, ln, infer, lvl) :: tail ->
@@ -249,5 +285,26 @@ module FrostyProver =
         //second member indicates first level hasn't existed before
         //fourth parameter is association of negated conclusion w/ level 1
         let proof = cp (List.map (fun x -> x, []) initialList) initialList (1, 0) [(1, 0), conclusionLine]
+        let lastLine = proof.[proof.Length - 1]
+        let f,_,_,l = lastLine
+        if f = conclusion && l = (0, 0) then
+            stringifyProof proof
+        else
+            let atoms = List.fold (fun x y -> x + atomsFromFormula y) Set.empty (premises @ [conclusion])
+            let closers = List.map (fun (_,_,_,l) -> l) (List.filter isCloser proof)
+            let provedLiterals =
+                Set.ofList
+                <| List.map fst
+                    (List.filter (function
+                        | Atom _, l | Not (Atom _), l -> not (List.contains l closers)
+                        | _ -> false) 
+                        (List.map (fun (f,_,_,l) -> f, l) proof))
+            let irrelevantAtoms = atoms - Set.map (function
+                | Atom _ as p -> p
+                | Not(Atom str) -> Atom str
+                | _ -> failwith "never called") provedLiterals
+            let counterModel = provedLiterals + (Set.map Not irrelevantAtoms)
+            Set.fold (fun x y -> x + "\n" + printLiteralTruth y) "Countermodel: " counterModel
+        //printfn "%A" (generateCounterModel proof)
+        //proof, true
         //printProof proof
-        proof

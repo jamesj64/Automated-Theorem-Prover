@@ -9,7 +9,6 @@ open DSharpPlus.Entities
 open System.Threading.Tasks
 open DSharpPlus.CommandsNext
 
-
 module Program =
 
     type config = {
