@@ -98,8 +98,21 @@ module FrostyProver =
                 @"`" + (string ln) + printNBarSpace (fst lvl + 1) + (prettyPrint formula) + " " + (stringifyInference infer) + @"`" + "\n" + mainStringProof tail
             | _ -> ""
         mainStringProof proof
-            
-    //MAKE IT SO IT DOESN'T PROVE SMTH ALREADY PROVED ON THE SAME LEVEL (basically done, I think)
+    
+    (*let removeUnnecessaryLines (proof: Line list) =
+        let rec getUsedLines proof =
+            match proof with
+            | (_,line: int,inference,_) :: tail ->
+                match inference with
+                | AIPL n | DN n | IMPL n | DM n | SIMP n | BICOND n -> [n] @ getUsedLines tail
+                | CCONTRA(n, m) | DS(n, m) | MP(n, m) | IP(n, m) -> [n; m] @ getUsedLines tail
+                | _ -> [line]
+            | _ -> []
+        let usedLines = getUsedLines proof*)
+
+    //TO DO: Implement a function to get rid of all the lines not used after the proof has been generated (numbers will have to be changed in accordance with removals)
+    //After that, try to remove entire unecessary subproofs
+    //also maybe add some more inferences
     let prove (premises: Formula list) (conclusion: Formula) =
         let premiseLines = List.mapi (fun i x -> Line(x, i + 1, PRE, (0,0))) premises
         let conclusionLine = Line(Not conclusion, List.length premiseLines + 1, AIPC, (1, 0))
@@ -268,6 +281,7 @@ module FrostyProver =
         let lastLine = proof.[proof.Length - 1]
         let f,_,_,l = lastLine
         if f = conclusion && l = (0, 0) then
+            //removeUnnecessaryLines proof |> ignore
             stringifyProof proof
         else
             let atoms = List.fold (fun x y -> x + atomsFromFormula y) Set.empty (premises @ [conclusion])
