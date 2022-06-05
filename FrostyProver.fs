@@ -161,6 +161,7 @@ module FrostyProver =
                 | And(p, q) ->
                     let newLines = if p <> q then [Line(p, ln, SIMP pln, level); Line(q, ln + 1, SIMP pln, level)] else [Line(p, ln, SIMP pln, level)]
                     let newOriginal = List.filter (fun (frm, _, _, l) -> not (List.exists (fun (frm1, _, _, l1) -> frm = frm1 && (l = l1 || fst l1 < fst l)) proof)) newLines
+                    let newOriginal = if newOriginal = [Line(q, ln + 1, SIMP pln, level)] then [Line(q, ln, SIMP pln, level)] else newOriginal
                     let newUsed = (List.filter (fun (x, _) -> x <> line) used) @ [line, (((listToFunc used) line) @ [level])] @ List.map (fun x -> x, []) newOriginal
                     cp newUsed (proof @ newOriginal) level assumptionsAtLevel
                 | Not(Or(p, q)) ->

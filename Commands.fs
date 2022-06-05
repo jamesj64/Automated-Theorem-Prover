@@ -51,7 +51,7 @@ type FrostyCommands() =
                 do! ctx.RespondAsync("Could not parse input.") |> Async.AwaitTask |> Async.Ignore
     }
 
-    [<Command("prove"); Description("Formats formula")>]
-    member public self.proveAsync (ctx: CommandContext, [<Description "Formula or list of formulas separated by line to prove"; RemainingText>] formula: string) =
+    [<Command("prove"); Description("Writes a proof for a given formula/argument")>]
+    member public self.proveAsync (ctx: CommandContext, [<Description "Formula or list of formulas each separated by a line to prove."; RemainingText>] formula: string) =
         self.prove(ctx, formula) |> Async.StartAsTask :> Task
     

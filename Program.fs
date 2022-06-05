@@ -30,7 +30,6 @@ module Program =
     [<EntryPoint>]
     let main argv =
         let mConfig = loadConfig()
-
         let config = DiscordConfiguration ()
         config.Token <- mConfig.token
         config.TokenType <- TokenType.Bot
