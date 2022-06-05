@@ -51,7 +51,7 @@ type FrostyCommands() =
                 do! ctx.RespondAsync("Could not parse input.") |> Async.AwaitTask |> Async.Ignore
     }
 
-    [<Command("prove"); Description("Writes a proof for a given formula/argument")>]
-    member public self.proveAsync (ctx: CommandContext, [<Description "Formula or list of formulas each separated by a line to prove."; RemainingText>] formula: string) =
+    [<Command("prove"); Description("Writes a proof for a given formula/argument\n\n**Allowed Symbols**\nNegation: `¬`, `~`, `!`, `-`\nConjunction: `∧`, `&`, `&&`\nDisjunction: `∨`, `|`, `||`\nMaterial Conditional: `⇒`, `→`, `⊃`, `->`, `-->`\nMaterial Biconditional: `⇔`, `⟷`, `≡`, `<->`, `<-->`\nAny of the symbols listed above are allowed, in addition to parentheses, brackets, spaces, and letters.\n\n**Additional Information about Syntax**\n1. Formulas should be written in infix notation.\n2. The truth-functional operators obey the standard precedence rules. The above operators are lister according to their relative precedences (descending).\n 3. Each of the above binary operators is right-associative. For example, `P ⇒ Q ⇒ P` will be treated as `P ⇒ (Q ⇒ P)`\n4. Each formula should be separated by a line. The first formula may be on the same line as the `prove` command.")>]
+    member public self.proveAsync (ctx: CommandContext, [<Description "Formula or list of formulas each separated by a line to prove. The last formula will be taken to be the goal/conclusion of the proof."; RemainingText>] formula: string) =
         self.prove(ctx, formula) |> Async.StartAsTask :> Task
     
