@@ -299,4 +299,4 @@ module FrostyProver =
                 | Not(Atom str) -> Atom str
                 | _ -> failwith "never called") provedLiterals
             let counterModel = provedLiterals + (Set.map Not irrelevantAtoms)
-            Set.fold (fun x y -> x + "\n" + printLiteralTruth y) "Countermodel: " counterModel
+            Set.fold (fun x y -> x + "\n`" + printLiteralTruth y + "`") "`Countermodel:`" counterModel
