@@ -99,20 +99,41 @@ module FrostyProver =
             | _ -> ""
         mainStringProof proof
     
-    (*let removeUnnecessaryLines (proof: Line list) =
+    let removeUnnecessaryLines (proof: Line list) =
         let rec getUsedLines proof =
             match proof with
             | (_,line: int,inference,_) :: tail ->
                 match inference with
-                | AIPL n | DN n | IMPL n | DM n | SIMP n | BICOND n -> [n] @ getUsedLines tail
-                | CCONTRA(n, m) | DS(n, m) | MP(n, m) | IP(n, m) -> [n; m] @ getUsedLines tail
-                | _ -> [line]
+                | AIPL n | DN n | IMPL n | DM n | SIMP n | BICOND n -> Set.singleton n + getUsedLines tail
+                | CCONTRA(n, m) | DS(n, m) | MP(n, m) | IP(n, m) -> Set.ofList [n; m] + getUsedLines tail
+                | _ -> Set.singleton line + getUsedLines tail
+            | _ -> Set.empty
+        let usedLines = getUsedLines proof + Set.singleton (proof.Length)
+        let unusedLines = Set.ofSeq [1..proof.Length] - usedLines
+        if unusedLines = Set.empty then proof else
+        let rec newProof proof =
+            match proof with
+            | (fm, l, infer, lvl) :: tail ->
+                if unusedLines.Contains l then newProof tail else
+                let increaseLn = Set.filter (fun x -> x < l) unusedLines
+                let newInfer =
+                    match infer with
+                    | AIPL n -> AIPL(n - Set.count(Set.filter (fun x -> x < n) increaseLn))
+                    | DN n -> DN(n - Set.count(Set.filter (fun x -> x < n) increaseLn))
+                    | IMPL n -> IMPL(n - Set.count(Set.filter (fun x -> x < n) increaseLn))
+                    | DM n -> DM(n - Set.count(Set.filter (fun x -> x < n) increaseLn))
+                    | SIMP n -> SIMP(n - Set.count(Set.filter (fun x -> x < n) increaseLn))
+                    | BICOND n -> BICOND(n - Set.count(Set.filter (fun x -> x < n) increaseLn))
+                    | CCONTRA(n, m) -> CCONTRA(n - Set.count(Set.filter (fun x -> x < n) increaseLn), m - Set.count(Set.filter (fun x -> x < m) increaseLn))
+                    | DS(n, m) -> DS(n - Set.count(Set.filter (fun x -> x < n) increaseLn), m - Set.count(Set.filter (fun x -> x < m) increaseLn))
+                    | MP(n, m) -> MP(n - Set.count(Set.filter (fun x -> x < n) increaseLn), m - Set.count(Set.filter (fun x -> x < m) increaseLn))
+                    | IP(n, m) -> IP(n - Set.count(Set.filter (fun x -> x < n) increaseLn), m - Set.count(Set.filter (fun x -> x < m) increaseLn))
+                    | _ -> infer
+                [fm, l - Set.count (increaseLn), newInfer, lvl] @ newProof tail
             | _ -> []
-        let usedLines = getUsedLines proof*)
+        newProof proof
 
-    //TO DO: Implement a function to get rid of all the lines not used after the proof has been generated (numbers will have to be changed in accordance with removals)
-    //After that, try to remove entire unecessary subproofs
-    //also maybe add some more inferences
+    //TODO: make it so any contradictory formulas can be used in an indirect proof, not just literals
     let prove (premises: Formula list) (conclusion: Formula) =
         let premiseLines = List.mapi (fun i x -> Line(x, i + 1, PRE, (0,0))) premises
         let conclusionLine = Line(Not conclusion, List.length premiseLines + 1, AIPC, (1, 0))
@@ -282,8 +303,8 @@ module FrostyProver =
         let lastLine = proof.[proof.Length - 1]
         let f,_,_,l = lastLine
         if f = conclusion && l = (0, 0) then
-            //removeUnnecessaryLines proof |> ignore
-            stringifyProof proof
+            stringifyProof (removeUnnecessaryLines proof)
+            //stringifyProof proof
         else
             let atoms = List.fold (fun x y -> x + atomsFromFormula y) Set.empty (premises @ [conclusion])
             let closers = List.map (fun (_,_,_,l) -> l) (List.filter isCloser proof)
