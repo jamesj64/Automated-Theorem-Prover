@@ -13,6 +13,7 @@ module FrostyProver =
         | IMPL of int
         | DM of int
         | SIMP of int
+        | IDEMP of int
         | BICOND of int
         | CCONTRA of int * int
         | DS of int * int
@@ -76,11 +77,16 @@ module FrostyProver =
         | IMPL ln -> $"[Impl, {ln}]"
         | DM ln -> $"[DM, {ln}]"
         | SIMP ln -> $"[Simp, {ln}]"
-        | BICOND ln -> $"[BICOND, {ln}]"
+        | BICOND ln -> $"[Bicond, {ln}]"
+        | IDEMP ln -> $"[Idemp, {ln}]"
         | CCONTRA(a, b) -> $"[Conj (contra.), {a};{b}]"
         | DS(a, b) -> $"[DS, {a};{b}]"
         | MP(a, b) -> $"[MP, {a};{b}]"
         | IP(a, b) -> $"[IP, {a}-{b}]"
+
+    let rec numDigits n = if n < 10 then 1 else numDigits (n / 10) + 1
+
+    let rec printNSpaces n = if n < 1 then "" else " " + printNSpaces (n - 1)
 
     let rec printNBarSpace n = if n = 0 then "" else "| " + printNBarSpace (n - 1)
 
@@ -92,24 +98,24 @@ module FrostyProver =
         | _ -> ()
 
     let stringifyProof (proof: Line list) =
+        let maxLineDigits = numDigits proof.Length
         let rec mainStringProof (proof: Line list) =
             match proof with
             | (formula, ln, infer, lvl) :: tail ->
-                @"`" + (string ln) + printNBarSpace (fst lvl + 1) + (prettyPrint formula) + " " + (stringifyInference infer) + @"`" + "\n" + mainStringProof tail
+                @"`" + (string ln) + printNSpaces (maxLineDigits - numDigits ln) + printNBarSpace (fst lvl + 1) + (prettyPrint formula) + " " + (stringifyInference infer) + @"`" + "\n" + mainStringProof tail
             | _ -> ""
         mainStringProof proof
     
     let removeUnnecessaryLines (proof: Line list) =
-        let rec getUsedLines proof =
-            match proof with
-            | (_,line: int,inference,_) :: tail ->
-                match inference with
-                | AIPL n | DN n | IMPL n | DM n | SIMP n | BICOND n -> Set.singleton n + getUsedLines tail
-                | CCONTRA(n, m) | DS(n, m) | MP(n, m) | IP(n, m) -> Set.ofList [n; m] + getUsedLines tail
-                | _ -> Set.singleton line + getUsedLines tail
-            | _ -> Set.empty
-        let usedLines = getUsedLines proof + Set.singleton (proof.Length)
+        let rec getUsedLines l =
+            let _,_,infer,_ = proof.[l - 1]
+            match infer with
+                | AIPL n | DN n | IMPL n | DM n | SIMP n | BICOND n | IDEMP n -> Set.singleton l + getUsedLines n
+                | CCONTRA(n, m) | DS(n, m) | MP(n, m) | IP(n, m) -> Set.singleton l + getUsedLines n + getUsedLines m
+                | _ -> Set.singleton l
+        let usedLines = getUsedLines proof.Length + Set.ofList (List.map (fun (_,ln,_,_) -> ln) (List.filter (fun (_,_,infer,_) -> infer = PRE) proof))
         let unusedLines = Set.ofSeq [1..proof.Length] - usedLines
+        //printfn "%A" unusedLines
         if unusedLines = Set.empty then proof else
         let rec newProof proof =
             match proof with
@@ -124,6 +130,7 @@ module FrostyProver =
                     | DM n -> DM(n - Set.count(Set.filter (fun x -> x < n) increaseLn))
                     | SIMP n -> SIMP(n - Set.count(Set.filter (fun x -> x < n) increaseLn))
                     | BICOND n -> BICOND(n - Set.count(Set.filter (fun x -> x < n) increaseLn))
+                    | IDEMP n -> IDEMP(n - Set.count(Set.filter (fun x -> x < n) increaseLn))
                     | CCONTRA(n, m) -> CCONTRA(n - Set.count(Set.filter (fun x -> x < n) increaseLn), m - Set.count(Set.filter (fun x -> x < m) increaseLn))
                     | DS(n, m) -> DS(n - Set.count(Set.filter (fun x -> x < n) increaseLn), m - Set.count(Set.filter (fun x -> x < m) increaseLn))
                     | MP(n, m) -> MP(n - Set.count(Set.filter (fun x -> x < n) increaseLn), m - Set.count(Set.filter (fun x -> x < m) increaseLn))
@@ -134,6 +141,7 @@ module FrostyProver =
         newProof proof
 
     //TODO: make it so any contradictory formulas can be used in an indirect proof, not just literals
+    //TODO: if possible, come up with some tactics for choosing which indirect proofs to start. maybe things like formula length, which literals it includes, etc...
     let prove (premises: Formula list) (conclusion: Formula) =
         let premiseLines = List.mapi (fun i x -> Line(x, i + 1, PRE, (0,0))) premises
         let conclusionLine = Line(Not conclusion, List.length premiseLines + 1, AIPC, (1, 0))
@@ -142,7 +150,7 @@ module FrostyProver =
             let unusedUnsorted = List.filter (fun x -> 
                 let _,_,_,l = x
                 let usedLevels = listToFunc used x
-                //list not used at current level
+                //lines not used at current level
                 not (List.contains level usedLevels) &&
                 //(-1,-1) lines can't be used
                 not (List.contains (-1,-1) usedLevels) &&
@@ -159,14 +167,14 @@ module FrostyProver =
                 List.sortBy
                     (fun x -> (listToFunc used x).Length + ((fun (formula, _, _, _) -> formula) >> function
                         | Atom _ | Not (Atom _) -> 0
-                        | Or (p, _) ->
-                            //sees whether you can do disjunctive syllogism or whether you'll need an indirect proof first
+                        | Or (p, q) ->
+                            //sees whether you can do disjunctive syllogism or whether you'll need an indirect proof first. also sees if you can do idempotence
                             let usableLines = List.filter (fun (f, _, _, l) -> fst l <= fst level && not (List.exists (fun (_, _, _, m) -> fst m = fst l && snd m > snd l) proof) && (Not f = p || Not p = f)) proof
-                            if usableLines.IsEmpty then 2 else 1
-                        | Implies (p, _) ->
-                            //sees whether you can do modus ponens or whether you'll need an indirect proof first
+                            if usableLines.IsEmpty && p <> q then 2 else 1
+                        | Implies (p, q) ->
+                            //sees whether you can do modus ponens or whether you'll need an indirect proof first. also sees if the antecedent and consequent are the same
                             let usableLines = List.filter (fun (f, _, _, l) -> fst l <= fst level && not (List.exists (fun (_, _, _, m) -> fst m = fst l && snd m > snd l) proof) && f = p) proof
-                            if usableLines.IsEmpty then 2 else 1
+                            if usableLines.IsEmpty || p = q then 2 else 1
                         | _ -> 1) x) unusedUnsorted
                         
             match unused with
@@ -212,6 +220,12 @@ module FrostyProver =
                     cp newUsed (proof @ newOriginal) level assumptionsAtLevel
                 //branching formula types
                 | Or(p, q) ->
+                    if p = q then
+                        let newLines = [Line(p, ln, IDEMP pln, level)]
+                        let newOriginal = List.filter (fun (frm, _, _, l) -> not (List.exists (fun (frm1, _, _, l1) -> frm = frm1 && (l = l1 || fst l1 < fst l)) proof)) newLines
+                        let newUsed = (List.filter (fun (x, _) -> x <> line) used) @ [line, (((listToFunc used) line) @ [level])] @ List.map (fun x -> x, []) newOriginal
+                        cp newUsed (proof @ newOriginal) level assumptionsAtLevel
+                    else
                     //lines usuable for disjunctive syllogism
                     let usableLines = List.filter (fun (f, _, _, l) -> fst l <= fst level && not (List.exists (fun (_, _, _, m) -> fst m = fst l && snd m > snd l) proof) && (Not f = p || Not p = f)) proof
                     if usableLines.IsEmpty then
