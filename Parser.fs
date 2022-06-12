@@ -34,6 +34,19 @@ module Parser =
     opp.AddOperator(InfixOperator("∧", spaces, 4, Associativity.Right, fun x y -> And(x, y)))
     opp.AddOperator(PrefixOperator("~", spaces, 5, true, Not))
     
+    let rec polishPrint formula =
+        match formula with
+        | Atom str -> str
+        | Not p -> $"¬{polishPrint p}"
+        | And(p, q) -> $"∧{polishPrint p}{polishPrint q}"
+        | Or(p, q) -> $"∨{polishPrint p}{polishPrint q}"
+        | Implies(p, q) -> $"⇒{polishPrint p}{polishPrint q}"
+        | Iff(p, q) -> $"⇔{polishPrint p}{polishPrint q}"
+
+    let polishPrintMany formulas =
+        List.map polishPrint formulas
+        |> List.fold (fun x y -> $"{x}\n{y}") ""
+        
     let prettyPrint formula =
         let rec prettyPrintF formula =
             match formula with

@@ -55,3 +55,15 @@ type FrostyCommands() =
     member public self.proveAsync (ctx: CommandContext, [<Description "Formula or list of formulas each separated by a line to prove. The last formula will be taken to be the goal/conclusion of the proof."; RemainingText>] formula: string) =
         self.prove(ctx, formula) |> Async.StartAsTask :> Task
     
+
+    member private self.polish (ctx: CommandContext, formula: string) = async {
+        do! ctx.TriggerTypingAsync() |> Async.AwaitTask
+        try
+            do! ctx.RespondAsync((splitPremisesChar >> polishPrintMany) formula) |> Async.AwaitTask |> Async.Ignore
+        with
+            _ -> do! ctx.RespondAsync("Could not parse input.") |> Async.AwaitTask |> Async.Ignore
+    }
+
+    [<Command("polish"); Aliases([|"pol"; "prefix"; "pre"|]); Description("Formats formula in Polish notation")>]
+    member public self.polishAsync (ctx: CommandContext, [<Description "Formula or list of formulas separated by line break to format in Polish notation"; RemainingText>] formula: string) =
+        self.polish(ctx, formula) |> Async.StartAsTask :> Task
