@@ -11,6 +11,10 @@ Writes a natural deduction proof of the inputted formula/argument
 
 Formats the supplied formula or list of formulas, each separated by a line.
 
+### `?polish`
+
+Converts the supplied formula or list of formulas, each separated by a line, to Polish notation.
+
 ### `?ping`
 
 Responds with socket latency
