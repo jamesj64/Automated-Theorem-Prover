@@ -128,25 +128,29 @@ module FrostyProver =
             | (fm, l, infer, lvl) :: tail ->
                 if unusedLines.Contains l then newProof tail else
                 let increaseLn = Set.filter (fun x -> x < l) unusedLines
+                let newSources ln = ln - Set.count(Set.filter (fun y -> y < ln) increaseLn)
                 let newInfer =
                     match infer with
-                    | AIPL n -> AIPL(n - Set.count(Set.filter (fun x -> x < n) increaseLn))
-                    | DN(n,t) -> DN(n - Set.count(Set.filter (fun x -> x < n) increaseLn), t)
-                    | IMPL n -> IMPL(n - Set.count(Set.filter (fun x -> x < n) increaseLn))
-                    | DM(n,t) -> DM(n - Set.count(Set.filter (fun x -> x < n) increaseLn), t)
-                    | SIMP(n,t) -> SIMP(n - Set.count(Set.filter (fun x -> x < n) increaseLn), t)
-                    | BICOND(n,t) -> BICOND(n - Set.count(Set.filter (fun x -> x < n) increaseLn), t)
-                    | IDEMP(n,t) -> IDEMP(n - Set.count(Set.filter (fun x -> x < n) increaseLn), t)
-                    | CCONTRA(n, m) -> CCONTRA(n - Set.count(Set.filter (fun x -> x < n) increaseLn), m - Set.count(Set.filter (fun x -> x < m) increaseLn))
-                    | DS(n, m, t) -> DS(n - Set.count(Set.filter (fun x -> x < n) increaseLn), m - Set.count(Set.filter (fun x -> x < m) increaseLn), t)
-                    | MP(n, m, t) -> MP(n - Set.count(Set.filter (fun x -> x < n) increaseLn), m - Set.count(Set.filter (fun x -> x < m) increaseLn), t)
-                    | IP(n, m, t) -> IP(n - Set.count(Set.filter (fun x -> x < n) increaseLn), m - Set.count(Set.filter (fun x -> x < m) increaseLn), t)
+                    | AIPL n -> AIPL(newSources n)
+                    | DN(n,t) -> DN(newSources n, t)
+                    | IMPL n -> IMPL(newSources n)
+                    | DM(n,t) -> DM(newSources n, t)
+                    | SIMP(n,t) -> SIMP(newSources n, t)
+                    | BICOND(n,t) -> BICOND(newSources n, t)
+                    | IDEMP(n,t) -> IDEMP(newSources n, t)
+                    | CCONTRA(n, m) -> CCONTRA(newSources n, newSources m)
+                    | DS(n, m, t) -> DS(newSources n, newSources m, t)
+                    | MP(n, m, t) -> MP(newSources n, newSources m, t)
+                    | IP(n, m, t) -> IP(newSources n, newSources m, t)
                     | _ -> infer
                 [fm, l - Set.count (increaseLn), newInfer, lvl] @ newProof tail
             | _ -> []
         newProof proof
 
     //TODO: make it so any contradictory premises are reiterated then used to close the indirect proof. also, change sorting to make conjunction first. literals don't matter anymore....
+    //TODO: Make it so that arguments with literal conclusions don't start indirect proofs. don't think this'll work. maybe it will if i make it do all the non-branching ones first though, then start subproof with AIPC and stuff once exhausted and if it hasn't finished
+    //TODO: Make disjunctive syllogism work with both sides
+    //TODO: Implement modus tollens. maybe other "elimination" rules
     //TODO: if possible, come up with some tactics for choosing which indirect proofs to start. maybe things like formula length, which literals it includes, etc...
     let prove (premises: Formula list) (conclusion: Formula) =
         let premiseLines = List.mapi (fun i x -> Line(x, i + 1, PRE, (0,0))) premises
