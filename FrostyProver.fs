@@ -9,16 +9,16 @@ module FrostyProver =
         | PRE
         | AIPC
         | AIPL of int
-        | DN of int
+        | DN of int * bool
         | IMPL of int
-        | DM of int
-        | SIMP of int
-        | IDEMP of int
-        | BICOND of int
+        | DM of int * bool
+        | SIMP of int * bool
+        | IDEMP of int * bool
+        | BICOND of int * bool
         | CCONTRA of int * int
-        | DS of int * int
-        | MP of int * int
-        | IP of int * int
+        | DS of int * int * bool
+        | MP of int * int * bool
+        | IP of int * int * bool
 
     type Line = Formula * int * Inference * (int * int)
 
@@ -69,20 +69,27 @@ module FrostyProver =
         | AIPL n -> n
         | _ -> failwith "not AIPL"
 
+    let isAIPL (infer: Inference) =
+        match infer with
+        | AIPL _ -> true
+        | _ -> false
+
+    let printIsContra (isContra: bool) = if isContra then " (contra.)" else ""
+
     let stringifyInference (infer: Inference) =
         match infer with
         | PRE -> "[Pre]"
         | AIPC | AIPL _ -> "[AIP]"
-        | DN ln -> $"[DN, {ln}]"
+        | DN(ln, t) -> $"[DN{printIsContra t}, {ln}]"
         | IMPL ln -> $"[Impl, {ln}]"
-        | DM ln -> $"[DM, {ln}]"
-        | SIMP ln -> $"[Simp, {ln}]"
-        | BICOND ln -> $"[Bicond, {ln}]"
-        | IDEMP ln -> $"[Idemp, {ln}]"
+        | DM (ln, t) -> $"[DM{printIsContra t}, {ln}]"
+        | SIMP (ln, t) -> $"[Simp{printIsContra t}, {ln}]"
+        | BICOND (ln, t) -> $"[Bicond{printIsContra t}, {ln}]"
+        | IDEMP (ln, t) -> $"[Idemp{printIsContra t}, {ln}]"
         | CCONTRA(a, b) -> $"[Conj (contra.), {a};{b}]"
-        | DS(a, b) -> $"[DS, {a};{b}]"
-        | MP(a, b) -> $"[MP, {a};{b}]"
-        | IP(a, b) -> $"[IP, {a}-{b}]"
+        | DS(a, b, t) -> $"[DS{printIsContra t}, {a};{b}]"
+        | MP(a, b, t) -> $"[MP{printIsContra t}, {a};{b}]"
+        | IP(a, b, t) -> $"[IP{printIsContra t}, {a}-{b}]"
 
     let rec numDigits n = if n < 10 then 1 else numDigits (n / 10) + 1
 
@@ -110,37 +117,40 @@ module FrostyProver =
         let rec getUsedLines l =
             let _,_,infer,_ = proof.[l - 1]
             match infer with
-                | AIPL n | DN n | IMPL n | DM n | SIMP n | BICOND n | IDEMP n -> Set.singleton l + getUsedLines n
-                | CCONTRA(n, m) | DS(n, m) | MP(n, m) | IP(n, m) -> Set.singleton l + getUsedLines n + getUsedLines m
+                | AIPL n | DN (n,_) | IMPL n| DM (n,_) | SIMP (n,_) | BICOND (n,_) | IDEMP (n,_) -> Set.singleton l + getUsedLines n
+                | CCONTRA(n, m) | DS(n, m, _) | MP(n, m, _) | IP(n, m, _) -> Set.singleton l + getUsedLines n + getUsedLines m
                 | _ -> Set.singleton l
         let usedLines = getUsedLines proof.Length + Set.ofList (List.map (fun (_,ln,_,_) -> ln) (List.filter (fun (_,_,infer,_) -> infer = PRE) proof))
         let unusedLines = Set.ofSeq [1..proof.Length] - usedLines
-        //printfn "%A" unusedLines
         if unusedLines = Set.empty then proof else
         let rec newProof proof =
             match proof with
             | (fm, l, infer, lvl) :: tail ->
                 if unusedLines.Contains l then newProof tail else
                 let increaseLn = Set.filter (fun x -> x < l) unusedLines
+                let newSources ln = ln - Set.count(Set.filter (fun y -> y < ln) increaseLn)
                 let newInfer =
                     match infer with
-                    | AIPL n -> AIPL(n - Set.count(Set.filter (fun x -> x < n) increaseLn))
-                    | DN n -> DN(n - Set.count(Set.filter (fun x -> x < n) increaseLn))
-                    | IMPL n -> IMPL(n - Set.count(Set.filter (fun x -> x < n) increaseLn))
-                    | DM n -> DM(n - Set.count(Set.filter (fun x -> x < n) increaseLn))
-                    | SIMP n -> SIMP(n - Set.count(Set.filter (fun x -> x < n) increaseLn))
-                    | BICOND n -> BICOND(n - Set.count(Set.filter (fun x -> x < n) increaseLn))
-                    | IDEMP n -> IDEMP(n - Set.count(Set.filter (fun x -> x < n) increaseLn))
-                    | CCONTRA(n, m) -> CCONTRA(n - Set.count(Set.filter (fun x -> x < n) increaseLn), m - Set.count(Set.filter (fun x -> x < m) increaseLn))
-                    | DS(n, m) -> DS(n - Set.count(Set.filter (fun x -> x < n) increaseLn), m - Set.count(Set.filter (fun x -> x < m) increaseLn))
-                    | MP(n, m) -> MP(n - Set.count(Set.filter (fun x -> x < n) increaseLn), m - Set.count(Set.filter (fun x -> x < m) increaseLn))
-                    | IP(n, m) -> IP(n - Set.count(Set.filter (fun x -> x < n) increaseLn), m - Set.count(Set.filter (fun x -> x < m) increaseLn))
+                    | AIPL n -> AIPL(newSources n)
+                    | DN(n,t) -> DN(newSources n, t)
+                    | IMPL n -> IMPL(newSources n)
+                    | DM(n,t) -> DM(newSources n, t)
+                    | SIMP(n,t) -> SIMP(newSources n, t)
+                    | BICOND(n,t) -> BICOND(newSources n, t)
+                    | IDEMP(n,t) -> IDEMP(newSources n, t)
+                    | CCONTRA(n, m) -> CCONTRA(newSources n, newSources m)
+                    | DS(n, m, t) -> DS(newSources n, newSources m, t)
+                    | MP(n, m, t) -> MP(newSources n, newSources m, t)
+                    | IP(n, m, t) -> IP(newSources n, newSources m, t)
                     | _ -> infer
                 [fm, l - Set.count (increaseLn), newInfer, lvl] @ newProof tail
             | _ -> []
         newProof proof
 
-    //TODO: make it so any contradictory formulas can be used in an indirect proof, not just literals
+    //TODO: make it so any contradictory premises are reiterated then used to close the indirect proof. also, change sorting to make conjunction first. literals don't matter anymore....
+    //TODO: Make it so that arguments with literal conclusions don't start indirect proofs. don't think this'll work. maybe it will if i make it do all the non-branching ones first though, then start subproof with AIPC and stuff once exhausted and if it hasn't finished
+    //TODO: Make disjunctive syllogism work with both sides
+    //TODO: Implement modus tollens. maybe other "elimination" rules
     //TODO: if possible, come up with some tactics for choosing which indirect proofs to start. maybe things like formula length, which literals it includes, etc...
     let prove (premises: Formula list) (conclusion: Formula) =
         let premiseLines = List.mapi (fun i x -> Line(x, i + 1, PRE, (0,0))) premises
@@ -176,25 +186,87 @@ module FrostyProver =
                             let usableLines = List.filter (fun (f, _, _, l) -> fst l <= fst level && not (List.exists (fun (_, _, _, m) -> fst m = fst l && snd m > snd l) proof) && f = p) proof
                             if usableLines.IsEmpty || p = q then 2 else 1
                         | _ -> 1) x) unusedUnsorted
-                        
+
             match unused with
-            | (formula, pln, _, _) as line :: _ ->
+            | (formula, pln, infer, _) as line :: _ ->
                 let ln = List.length proof + 1
+                let contraList = List.filter (fun (f, _, _, l) -> fst l <= fst level && not (List.exists (fun (_, _, _, m) -> fst m = fst l && snd m > snd l) proof) && (f = Not formula || Not f = formula)) proof
+                if contraList.Length > 0 && fst level > 0 then
+                    //otherconj is a contradictory literal and otherLine is its line number
+                    let otherConj, otherLine, _, _ = contraList.[0]
+                    //assumption is the formula assumed for indirect proof
+                    //al is its line number
+                    //infer is its inference rule
+                    let (assumption, al, infer, _) = listToFunc assumptionsAtLevel level
+                    //prevLinesLevel is list of all the versions of times the level (level - 1) has existed
+                    let previousLinesLevel = List.map (fun (_,_,_, l) -> snd l) (List.filter (fun (_,_,_,l) -> fst l = fst level - 1) proof)
+                    //say level is (a, b) then newLevel is (a - 1, max prevLinesLevel)
+                    let newLevel = (fst level - 1, if previousLinesLevel.Length = 0 then 0 else List.max previousLinesLevel)
+                    //gets rid of the assumption for the current level
+                    let newAssumptionsAtLevel = List.filter (fun (x, _) -> x <> level) assumptionsAtLevel
+                    if infer = AIPC then
+                        let newLines =  [Line(And(otherConj, formula), ln, CCONTRA(otherLine, pln), level); Line(Not(assumption), ln + 1, IP(al, ln, false), newLevel); Line(nonNegatedForm assumption, ln + 2, DN(ln + 1, false), newLevel)]
+                        cp (List.map (fun x -> x, [(0,0)]) (proof @ newLines)) (proof @ newLines) newLevel newAssumptionsAtLevel
+                    else
+                        let inspireAIPLine = proof.[getInfoFromAIPL infer - 1]
+                        let inspireForm, inspireLine, _, _ = inspireAIPLine
+                        if getTypeOfFormula inspireForm = "Implies" then 
+                            let newLines =  [Line(And(otherConj, formula), ln, CCONTRA(otherLine, pln), level); Line(Not(assumption), ln + 1, IP(al, ln, false), newLevel); Line(nonNegatedForm assumption, ln + 2, DN(ln + 1, false), newLevel); Line(snd(decompBinaryForm inspireForm), ln + 3, MP(inspireLine, ln + 2, false), newLevel)]
+                            let newUsed = (List.filter (fun (x, _) -> x <> line) used) @ [line, (((listToFunc used) line) @ [level])] @ List.map (fun x -> x, []) newLines
+                            cp newUsed (proof @ newLines) newLevel newAssumptionsAtLevel
+                        else
+                            let newLines =  [Line(And(otherConj, formula), ln, CCONTRA(otherLine, pln), level); Line(Not(assumption), ln + 1, IP(al, ln, false), newLevel); Line(snd(decompBinaryForm inspireForm), ln + 2, DS(inspireLine, ln + 1, false), newLevel)]
+                            let newUsed = (List.filter (fun (x, _) -> x <> line) used) @ [line, (((listToFunc used) line) @ [level])] @ List.map (fun x -> x, []) newLines
+                            cp newUsed (proof @ newLines) newLevel newAssumptionsAtLevel
+                else
                 match formula with
                 //non-literal "non-branching" formula types
                 | Not(Not p) ->
-                    let newLines = [Line(p, ln, DN pln, level)]
+                    let newLines = [Line(p, ln, DN (pln, false), level)]
                     let newOriginal = List.filter (fun (frm, _, _, l) -> not (List.exists (fun (frm1, _, _, l1) -> frm = frm1 && (l = l1 || fst l1 < fst l)) proof)) newLines
                     let newUsed = (List.filter (fun (x, _) -> x <> line) used) @ [line, (((listToFunc used) line) @ [level])] @ List.map (fun x -> x, []) newOriginal
                     cp newUsed (proof @ newOriginal) level assumptionsAtLevel
                 | And(p, q) ->
-                    let newLines = if p <> q then [Line(p, ln, SIMP pln, level); Line(q, ln + 1, SIMP pln, level)] else [Line(p, ln, SIMP pln, level)]
-                    let newOriginal = List.filter (fun (frm, _, _, l) -> not (List.exists (fun (frm1, _, _, l1) -> frm = frm1 && (l = l1 || fst l1 < fst l)) proof)) newLines
-                    let newOriginal = if newOriginal = [Line(q, ln + 1, SIMP pln, level)] then [Line(q, ln, SIMP pln, level)] else newOriginal
-                    let newUsed = (List.filter (fun (x, _) -> x <> line) used) @ [line, (((listToFunc used) line) @ [level])] @ List.map (fun x -> x, []) newOriginal
-                    cp newUsed (proof @ newOriginal) level assumptionsAtLevel
+                    //todo: reiteration for when infer = pre and maybe for when isAIPL infer
+                    if (p = Not q || Not p = q) && not (isAIPL infer) && infer <> PRE then
+                        let undoneProof = List.filter (fun x -> x <> line) proof
+                        let newInference =
+                            match infer with
+                            | DN(n, _) -> DN(n, true)
+                            | DM(n, _) -> DM(n, true)
+                            | SIMP(n,_) -> SIMP(n, true)
+                            | IDEMP(n, _) -> IDEMP(n, true)
+                            | BICOND(n, _) -> BICOND(n, true)
+                            | DS(n, m, _) -> DS(n, m, true)
+                            | MP(n, m, _) -> MP(n, m, true)
+                            | x -> x
+                        let redoneLine = Line(And(p, q), ln - 1, newInference, level)
+                        let (assumption, al, infer, _) = listToFunc assumptionsAtLevel level
+                        let previousLinesLevel = List.map (fun (_,_,_, l) -> snd l) (List.filter (fun (_,_,_,l) -> fst l = fst level - 1) proof)
+                        let newLevel = (fst level - 1, if previousLinesLevel.Length = 0 then 0 else List.max previousLinesLevel)
+                        let newAssumptionsAtLevel = List.filter (fun (x, _) -> x <> level) assumptionsAtLevel
+                        if infer = AIPC then
+                            let newLines =  [redoneLine; Line(Not(assumption), ln, IP(al, ln - 1, false), newLevel); Line(nonNegatedForm assumption, ln + 1, DN(ln, false), newLevel)]
+                            cp (List.map (fun x -> x, [(0,0)]) (undoneProof @ newLines)) (undoneProof @ newLines) newLevel newAssumptionsAtLevel
+                        else
+                            let inspireAIPLine = proof.[getInfoFromAIPL infer - 1]
+                            let inspireForm, inspireLine, _, _ = inspireAIPLine
+                            if getTypeOfFormula inspireForm = "Implies" then 
+                                let newLines = [redoneLine; Line(Not(assumption), ln, IP(al, ln - 1, false), newLevel); Line(nonNegatedForm assumption, ln + 1, DN(ln, false), newLevel); Line(snd(decompBinaryForm inspireForm), ln + 2, MP(inspireLine, ln + 1, false), newLevel)]
+                                let newUsed = (List.filter (fun (x, _) -> x <> line && x <> redoneLine) used) @ [line, (((listToFunc used) line) @ [level])] @ List.map (fun x -> x, []) newLines
+                                cp newUsed (undoneProof @ newLines) newLevel newAssumptionsAtLevel
+                            else
+                                let newLines =  [redoneLine; Line(Not(assumption), ln, IP(al, ln - 1, false), newLevel); Line(snd(decompBinaryForm inspireForm), ln + 1, DS(inspireLine, ln, false), newLevel)]
+                                let newUsed = (List.filter (fun (x, _) -> x <> line && x <> redoneLine) used) @ [line, (((listToFunc used) line) @ [level])] @ List.map (fun x -> x, []) newLines
+                                cp newUsed (undoneProof @ newLines) newLevel newAssumptionsAtLevel
+                    else
+                        let newLines = if p <> q then [Line(p, ln, SIMP (pln, false), level); Line(q, ln + 1, SIMP (pln, false), level)] else [Line(p, ln, SIMP (pln, false), level)]
+                        let newOriginal = List.filter (fun (frm, _, _, l) -> not (List.exists (fun (frm1, _, _, l1) -> frm = frm1 && (l = l1 || fst l1 < fst l)) proof)) newLines
+                        let newOriginal = if newOriginal = [Line(q, ln + 1, SIMP (pln, false), level)] then [Line(q, ln, SIMP (pln, false), level)] else newOriginal
+                        let newUsed = (List.filter (fun (x, _) -> x <> line) used) @ [line, (((listToFunc used) line) @ [level])] @ List.map (fun x -> x, []) newOriginal
+                        cp newUsed (proof @ newOriginal) level assumptionsAtLevel
                 | Not(Or(p, q)) ->
-                    let newLines = [Line(And(Not p, Not q), ln, DM pln, level)]
+                    let newLines = [Line(And(Not p, Not q), ln, DM (pln, false), level)]
                     let newOriginal = List.filter (fun (frm, _, _, l) -> not (List.exists (fun (frm1, _, _, l1) -> frm = frm1 && (l = l1 || fst l1 < fst l)) proof)) newLines
                     let newUsed = (List.filter (fun (x, _) -> x <> line) used) @ [line, (((listToFunc used) line) @ [level])] @ List.map (fun x -> x, []) newOriginal
                     cp newUsed (proof @ newOriginal) level assumptionsAtLevel
@@ -204,24 +276,24 @@ module FrostyProver =
                     let newUsed = (List.filter (fun (x, _) -> x <> line) used) @ [line, (((listToFunc used) line) @ [level])] @ List.map (fun x -> x, []) newOriginal
                     cp newUsed (proof @ newOriginal) level assumptionsAtLevel
                 | Not(And(p, q)) ->
-                    let newLines = [Line(Or(Not p, Not q), ln, DM pln, level)]
+                    let newLines = [Line(Or(Not p, Not q), ln, DM (pln, false), level)]
                     let newOriginal = List.filter (fun (frm, _, _, l) -> not (List.exists (fun (frm1, _, _, l1) -> frm = frm1 && (l = l1 || fst l1 < fst l)) proof)) newLines
                     let newUsed = (List.filter (fun (x, _) -> x <> line) used) @ [line, (((listToFunc used) line) @ [level])] @ List.map (fun x -> x, []) newOriginal
                     cp newUsed (proof @ newOriginal) level assumptionsAtLevel
                 | Iff(p, q) ->
-                    let newLines = [Line(And(Implies(p, q), Implies(q, p)), ln, BICOND pln, level)]
+                    let newLines = [Line(And(Implies(p, q), Implies(q, p)), ln, BICOND (pln, false), level)]
                     let newOriginal = List.filter (fun (frm, _, _, l) -> not (List.exists (fun (frm1, _, _, l1) -> frm = frm1 && (l = l1 || fst l1 < fst l)) proof)) newLines
                     let newUsed = (List.filter (fun (x, _) -> x <> line) used) @ [line, (((listToFunc used) line) @ [level])] @ List.map (fun x -> x, []) newOriginal
                     cp newUsed (proof @ newOriginal) level assumptionsAtLevel
                 | Not(Iff(p, q)) -> 
-                    let newLines = [Line(Not(And(Implies(p, q), Implies(q, p))), ln, BICOND pln, level)]
+                    let newLines = [Line(Not(And(Implies(p, q), Implies(q, p))), ln, BICOND (pln, false), level)]
                     let newOriginal = List.filter (fun (frm, _, _, l) -> not (List.exists (fun (frm1, _, _, l1) -> frm = frm1 && (l = l1 || fst l1 < fst l)) proof)) newLines
                     let newUsed = (List.filter (fun (x, _) -> x <> line) used) @ [line, (((listToFunc used) line) @ [level])] @ List.map (fun x -> x, []) newOriginal
                     cp newUsed (proof @ newOriginal) level assumptionsAtLevel
                 //branching formula types
                 | Or(p, q) ->
                     if p = q then
-                        let newLines = [Line(p, ln, IDEMP pln, level)]
+                        let newLines = [Line(p, ln, IDEMP (pln, false), level)]
                         let newOriginal = List.filter (fun (frm, _, _, l) -> not (List.exists (fun (frm1, _, _, l1) -> frm = frm1 && (l = l1 || fst l1 < fst l)) proof)) newLines
                         let newUsed = (List.filter (fun (x, _) -> x <> line) used) @ [line, (((listToFunc used) line) @ [level])] @ List.map (fun x -> x, []) newOriginal
                         cp newUsed (proof @ newOriginal) level assumptionsAtLevel
@@ -246,7 +318,7 @@ module FrostyProver =
                             cp newUsed proof level assumptionsAtLevel
                     else
                         //just adds lines for disjunctive syllogism and stuff
-                        let newLines = [Line(q, ln, DS(pln, (fun (_,x,_,_) -> x) usableLines.[0]), level)]
+                        let newLines = [Line(q, ln, DS(pln, (fun (_,x,_,_) -> x) usableLines.[0], false), level)]
                         let newOriginal = List.filter (fun (frm, _, _, l) -> not (List.exists (fun (frm1, _, _, l1) -> frm = frm1 && (l = l1 || fst l1 < fst l)) proof)) newLines
                         let newUsed = (List.filter (fun (x, _) -> x <> line) used) @ [line, (((listToFunc used) line) @ [level])] @ List.map (fun x -> x, []) newOriginal
                         cp newUsed (proof @ newOriginal) level assumptionsAtLevel
@@ -270,44 +342,14 @@ module FrostyProver =
                             cp newUsed proof level assumptionsAtLevel
                     else
                         //just adds lines for modus ponens and stuff
-                        let newLines = [Line(q, ln, MP(pln, (fun (_,x,_,_) -> x) usableLines.[0]), level)]
+                        let newLines = [Line(q, ln, MP(pln, (fun (_,x,_,_) -> x) usableLines.[0], false), level)]
                         let newOriginal = List.filter (fun (frm, _, _, l) -> not (List.exists (fun (frm1, _, _, l1) -> frm = frm1 && (l = l1 || fst l1 < fst l)) proof)) newLines
                         let newUsed = (List.filter (fun (x, _) -> x <> line) used) @ [line, (((listToFunc used) line) @ [level])] @ List.map (fun x -> x, []) newOriginal
                         cp newUsed (proof @ newOriginal) level assumptionsAtLevel
                 //check literals for contradictions - they're otherwise useless
-                | Atom str | Not (Atom str) as p ->
-                    //list of contradictory literals with p
-                    let contraList = List.filter (fun (f, _, _, l) -> fst l <= fst level && not (List.exists (fun (_, _, _, m) -> fst m = fst l && snd m > snd l) proof) && (if p = Atom str then Not p = f else p = Not f)) proof
-                    if contraList.Length > 0 && fst level > 0 then
-                        //otherconj is a contradictory literal and otherLine is its line number
-                        let otherConj, otherLine, _, _ = contraList.[0]
-                        //assumption is the formula assumed for indirect proof
-                        //al is its line number
-                        //infer is its inference rule
-                        let (assumption, al, infer, _) = listToFunc assumptionsAtLevel level
-                        //prevLinesLevel is list of all the versions of times the level (level - 1) has existed
-                        let previousLinesLevel = List.map (fun (_,_,_, l) -> snd l) (List.filter (fun (_,_,_,l) -> fst l = fst level - 1) proof)
-                        //say level is (a, b) then newLevel is (a - 1, max prevLinesLevel)
-                        let newLevel = (fst level - 1, if previousLinesLevel.Length = 0 then 0 else List.max previousLinesLevel)
-                        //gets rid of the assumption for the current level
-                        let newAssumptionsAtLevel = List.filter (fun (x, _) -> x <> level) assumptionsAtLevel
-                        if infer = AIPC then
-                            let newLines =  [Line(And(otherConj, p), ln, CCONTRA(otherLine, pln), level); Line(Not(assumption), ln + 1, IP(al, ln), newLevel); Line(nonNegatedForm assumption, ln + 2, DN(ln + 1), newLevel)]
-                            cp (List.map (fun x -> x, [(0,0)]) (proof @ newLines)) (proof @ newLines) newLevel newAssumptionsAtLevel
-                        else
-                            let inspireAIPLine = proof.[getInfoFromAIPL infer - 1]
-                            let inspireForm, inspireLine, _, _ = inspireAIPLine
-                            if getTypeOfFormula inspireForm = "Implies" then 
-                                let newLines =  [Line(And(otherConj, p), ln, CCONTRA(otherLine, pln), level); Line(Not(assumption), ln + 1, IP(al, ln), newLevel); Line(nonNegatedForm assumption, ln + 2, DN(ln + 1), newLevel); Line(snd(decompBinaryForm inspireForm), ln + 3, MP(inspireLine, ln + 2), newLevel)]
-                                let newUsed = (List.filter (fun (x, _) -> x <> line) used) @ [line, (((listToFunc used) line) @ [level])] @ List.map (fun x -> x, []) newLines
-                                cp newUsed (proof @ newLines) newLevel newAssumptionsAtLevel
-                            else
-                                let newLines =  [Line(And(otherConj, p), ln, CCONTRA(otherLine, pln), level); Line(Not(assumption), ln + 1, IP(al, ln), newLevel); Line(snd(decompBinaryForm inspireForm), ln + 2, DS(inspireLine, ln + 1), newLevel)]
-                                let newUsed = (List.filter (fun (x, _) -> x <> line) used) @ [line, (((listToFunc used) line) @ [level])] @ List.map (fun x -> x, []) newLines
-                                cp newUsed (proof @ newLines) newLevel newAssumptionsAtLevel
-                    else
-                        let newUsed = (List.filter (fun (x, _) -> x <> line) used) @ [line, (((listToFunc used) line) @ [level])]
-                        cp newUsed proof level assumptionsAtLevel
+                | Atom _ | Not (Atom _) ->
+                    let newUsed = (List.filter (fun (x, _) -> x <> line) used) @ [line, (((listToFunc used) line) @ [level])]
+                    cp newUsed proof level assumptionsAtLevel
             | [] -> proof
         let initialList = premiseLines @ [conclusionLine]
         //third parameter is (1, 0) cuz we always have an indirect proof after the premises.
