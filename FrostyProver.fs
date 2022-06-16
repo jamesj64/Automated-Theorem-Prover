@@ -9,6 +9,7 @@ module FrostyProver =
         | PRE
         | AIPC
         | AIPL of int
+        | RE of int * bool
         | DN of int * bool
         | IMPL of int
         | DM of int * bool
@@ -26,6 +27,15 @@ module FrostyProver =
         let _, _, inference, _ = line 
         match inference with
         | CCONTRA _ -> true
+        | RE(_, true) -> true
+        | DN(_, true) -> true
+        | DM(_, true) -> true
+        | SIMP(_, true) -> true
+        | IDEMP(_, true) -> true
+        | BICOND(_, true) -> true
+        | DS(_,_,true) -> true
+        | MP(_,_,true) -> true
+        | IP(_,_,true) -> true
         | _ -> false
 
     let listToFunc (s: List<'a * 'b>) (x: 'a) =
@@ -45,6 +55,11 @@ module FrostyProver =
         | Not(Atom str) -> str + ": false"
         | _ -> failwith "not a literal"
 
+    let isLiteral (formula: Formula) =
+        match formula with
+        | Atom _ | Not(Atom _) -> true
+        | _ -> false
+
     let getTypeOfFormula (formula: Formula) =
         match formula with
         | Implies _ -> "Implies"
@@ -62,7 +77,7 @@ module FrostyProver =
     let nonNegatedForm (formula: Formula) =
         match formula with
         | Not p -> p
-        | _ -> failwith "not negated"
+        | p -> p
 
     let getInfoFromAIPL (infer: Inference) =
         match infer with
@@ -80,6 +95,7 @@ module FrostyProver =
         match infer with
         | PRE -> "[Pre]"
         | AIPC | AIPL _ -> "[AIP]"
+        | RE(ln, t) -> $"[RE{printIsContra t}, {ln}]"
         | DN(ln, t) -> $"[DN{printIsContra t}, {ln}]"
         | IMPL ln -> $"[Impl, {ln}]"
         | DM (ln, t) -> $"[DM{printIsContra t}, {ln}]"
@@ -132,6 +148,7 @@ module FrostyProver =
                 let newInfer =
                     match infer with
                     | AIPL n -> AIPL(newSources n)
+                    | RE(n, t) -> RE(newSources n, t)
                     | DN(n,t) -> DN(newSources n, t)
                     | IMPL n -> IMPL(newSources n)
                     | DM(n,t) -> DM(newSources n, t)
@@ -153,6 +170,7 @@ module FrostyProver =
     //TODO: Implement modus tollens. maybe other "elimination" rules
     //TODO: if possible, come up with some tactics for choosing which indirect proofs to start. maybe things like formula length, which literals it includes, etc...
     let prove (premises: Formula list) (conclusion: Formula) =
+        let isLiteralConclusion = isLiteral conclusion && premises <> []
         let premiseLines = List.mapi (fun i x -> Line(x, i + 1, PRE, (0,0))) premises
         let conclusionLine = Line(Not conclusion, List.length premiseLines + 1, AIPC, (1, 0))
         let rec cp (used: List<Line * List<int * int>>) (proof: Line list) (level: int * int) (assumptionsAtLevel: List<(int * int) * Line>) =
@@ -169,7 +187,6 @@ module FrostyProver =
                 //there can't be any line in the proof that is on a newer version of the same level
                 //btw, for a level (a, b), a is the level "number", and b is the level "version"
                 (fst l <> fst level || snd level <= snd l) && fst l <= fst level && not (List.exists (fun (_, _, _, m) -> fst m = fst l && snd m > snd l) proof)) proof
-
             //puts literals first, non-branching nodes second, and branching nodes last.
             //also, the number of times a line has been used affects its rank
             //this way we never use branching nodes unless that's our only option
@@ -228,10 +245,11 @@ module FrostyProver =
                     cp newUsed (proof @ newOriginal) level assumptionsAtLevel
                 | And(p, q) ->
                     //todo: reiteration for when infer = pre and maybe for when isAIPL infer
-                    if (p = Not q || Not p = q) && not (isAIPL infer) && infer <> PRE then
+                    if (p = Not q || Not p = q) && not (isAIPL infer) && infer <> PRE && level <> (0, 0) then
                         let undoneProof = List.filter (fun x -> x <> line) proof
                         let newInference =
                             match infer with
+                            | RE(n, _) -> RE(n, true)
                             | DN(n, _) -> DN(n, true)
                             | DM(n, _) -> DM(n, true)
                             | SIMP(n,_) -> SIMP(n, true)
@@ -241,6 +259,7 @@ module FrostyProver =
                             | MP(n, m, _) -> MP(n, m, true)
                             | x -> x
                         let redoneLine = Line(And(p, q), ln - 1, newInference, level)
+                        //FIX THIS. GETS MESSED UP WITH CONTRADICTIONS ON THE MAIN LINE
                         let (assumption, al, infer, _) = listToFunc assumptionsAtLevel level
                         let previousLinesLevel = List.map (fun (_,_,_, l) -> snd l) (List.filter (fun (_,_,_,l) -> fst l = fst level - 1) proof)
                         let newLevel = (fst level - 1, if previousLinesLevel.Length = 0 then 0 else List.max previousLinesLevel)
@@ -346,22 +365,35 @@ module FrostyProver =
                         let newOriginal = List.filter (fun (frm, _, _, l) -> not (List.exists (fun (frm1, _, _, l1) -> frm = frm1 && (l = l1 || fst l1 < fst l)) proof)) newLines
                         let newUsed = (List.filter (fun (x, _) -> x <> line) used) @ [line, (((listToFunc used) line) @ [level])] @ List.map (fun x -> x, []) newOriginal
                         cp newUsed (proof @ newOriginal) level assumptionsAtLevel
-                //check literals for contradictions - they're otherwise useless
-                | Atom _ | Not (Atom _) ->
-                    let newUsed = (List.filter (fun (x, _) -> x <> line) used) @ [line, (((listToFunc used) line) @ [level])]
-                    cp newUsed proof level assumptionsAtLevel
+                //check literals to see if it's the conclusion - they're otherwise useless
+                | Atom _ | Not (Atom _) as p ->
+                    if conclusion = p && level = (0, 0) then
+                        (List.filter (fun (_,l,_,_) -> l <= pln || l <= premises.Length) proof) @ if infer = PRE then [Line(p, ln, RE(pln, false), (0,0))] else []
+                    else
+                        let newUsed = (List.filter (fun (x, _) -> x <> line) used) @ [line, (((listToFunc used) line) @ [level])]
+                        cp newUsed proof level assumptionsAtLevel
             | [] -> proof
-        let initialList = premiseLines @ [conclusionLine]
+        let initialList = if isLiteralConclusion then premiseLines else premiseLines @ [conclusionLine]
         //third parameter is (1, 0) cuz we always have an indirect proof after the premises.
         //second member indicates first level hasn't existed before
         //fourth parameter is association of negated conclusion w/ level 1
-        let proof = cp (List.map (fun x -> x, []) initialList) initialList (1, 0) [(1, 0), conclusionLine]
+        let proof = if isLiteralConclusion then cp (List.map (fun x -> x, []) initialList) initialList (0, 0) [] else cp (List.map (fun x -> x, []) initialList) initialList (1, 0) [(1, 0), conclusionLine]
         let lastLine = proof.[proof.Length - 1]
         let f,_,_,l = lastLine
         if f = conclusion && l = (0, 0) then
             stringifyProof (removeUnnecessaryLines proof)
-            //stringifyProof proof
         else
+            let proof = 
+                if isLiteralConclusion then
+                    let initialList = premiseLines @ [conclusionLine]
+                    cp (List.map (fun x -> x, []) initialList) initialList (1, 0) [(1, 0), conclusionLine]
+                else 
+                    proof
+            let lastLine = proof.[proof.Length - 1]
+            let f,_,_,l = lastLine
+            if f = conclusion && l = (0, 0) then
+                stringifyProof (removeUnnecessaryLines proof)
+            else
             let atoms = List.fold (fun x y -> x + atomsFromFormula y) Set.empty (premises @ [conclusion])
             let closers = List.map (fun (_,_,_,l) -> l) (List.filter isCloser proof)
             let provedLiterals =
