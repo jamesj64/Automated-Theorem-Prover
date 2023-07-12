@@ -1,5 +1,5 @@
 # Frosty
-A functionally-programmed discord bot with logic-related functionality
+A functionally-programmed theorem prover with logic-related functionality
 
 ## Commands
 
@@ -25,7 +25,7 @@ Lists all commands. Specify a command to see more information about the given co
 
 
 ## Some examples
-An example of a Frosty-generated proof of `P ⇒ P`:
+An example of a proof of `P ⇒ P`:
 
 `1| | ¬(P ⇒ P) [AIP]`<br/>
 `2| | ¬(¬P ∨ P) [Impl, 1]`<br/>
@@ -48,10 +48,10 @@ P ⇒ Q
 Q
 ```
 
-In the first example, Frosty will attempt to write a proof of `P ⇒ Q` or `⊢ P ⇒ Q`. However, since `P ⇒ Q` is invalid, Frosty will instead provide a countermodel.
-Frosty always chooses the final formula to be the goal/conclusion of a proof. So, in the second example, Frosty will try to prove the following inference `P ∨ Q, P ⇒ Q ⊢ Q`. Since it is valid, Frosty will send a natural deduction proof of the supplied inference.
+In the first example, it will attempt to write a proof of `P ⇒ Q` or `⊢ P ⇒ Q`. However, since `P ⇒ Q` is invalid, it will instead provide a countermodel.
+Frosty always chooses the final formula to be the goal/conclusion of a proof. So, in the second example, it will try to prove the following inference `P ∨ Q, P ⇒ Q ⊢ Q`. Since it is valid, it will send a natural deduction proof of the supplied inference.
 
-An example of a Frosty-formatted version of `P -> Q || R <-> Q && T`:
+An example of a formatted version of `P -> Q || R <-> Q && T`:
 
 `(P ⇒ (Q ∨ R)) ⇔ (Q ∧ T)`
 
