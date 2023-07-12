@@ -1,5 +1,4 @@
-# Frosty
-A functionally-programmed theorem prover with logic-related functionality
+## A functionally-programmed theorem prover with logic-related functionality
 
 ## Commands
 
