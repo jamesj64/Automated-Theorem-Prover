@@ -95,6 +95,16 @@ module Parser =
         >> fun x -> Regex.Replace(x, "\]", ")")
         <| str
 
+    let parsePremisesChar (premises: List<string>) =
+        premises
+        |> List.map (format >> parse)
+        |> List.filter (fun x -> x <> None)
+        |> List.map
+            (fun x ->
+                match x with
+                    | Some x -> x
+                    | _ -> failwith "this should never be called")
+
     let splitPremisesChar str = 
         Regex.Split(str, "\n")
         |> Array.map (format >> parse)

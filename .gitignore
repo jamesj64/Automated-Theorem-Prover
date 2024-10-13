@@ -4,3 +4,4 @@ bin/
 config.json
 newConfig.json
 .fake
+.vscode

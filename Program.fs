@@ -1,53 +1,134 @@
 namespace Frosty
 
+open FrostyProver
+open Parser
 open System
-open System.IO
-open System.Text
-open Newtonsoft.Json
-open DSharpPlus
-open DSharpPlus.Entities
-open System.Threading.Tasks
-open DSharpPlus.CommandsNext
 
 module Program =
 
-    type config = {
-        token: string
-        prefix: string
-    }
 
-    let loadConfig () =
-        let utf8 = new UTF8Encoding false
-        use fs = File.OpenRead("config.json")
-        use sr = new StreamReader(fs, utf8)
-        let json = sr.ReadToEnd()
+    let helpPolish () =
+        Console.ForegroundColor <- ConsoleColor.Yellow
+        Console.WriteLine("\u001b[1mpolish\u001b[0m")
+        Console.ResetColor()
+        Console.WriteLine("Converts the supplied formula or list of formulas, each separated by a line, to Polish notation.")
+        
+    let helpFormat () =
+        Console.ForegroundColor <- ConsoleColor.Yellow
+        Console.WriteLine("\u001b[1mformat\u001b[0m")
+        Console.ResetColor()
+        Console.WriteLine("Formats the supplied formula or list of formulas, each separated by a line.")
+        
+    let properUsage () =
+        // Use Console.WriteLine to display "Commands" in bold.
+        Console.WriteLine("\u001b[1mCommands\u001b[0m")
+        Console.WriteLine("------------------------------")
 
-        sr.Dispose()
-        fs.Dispose()
+        // Set the console text color to yellow for command names
+        Console.ForegroundColor <- ConsoleColor.Yellow
+        Console.WriteLine("\u001b[1mprove\u001b[0m")
+        Console.ResetColor()
+        Console.WriteLine("Writes a natural deduction proof of the inputted formula/argument")
 
-        JsonConvert.DeserializeObject<config>(json)
+        Console.WriteLine()
+
+        Console.ForegroundColor <- ConsoleColor.Yellow
+        Console.WriteLine("\u001b[1mformat\u001b[0m")
+        Console.ResetColor()
+        Console.WriteLine("Formats the supplied formula or list of formulas, each separated by a line.")
+        
+        Console.WriteLine()
+        
+        Console.ForegroundColor <- ConsoleColor.Yellow
+        Console.WriteLine("\u001b[1mpolish\u001b[0m")
+        Console.ResetColor()
+        Console.WriteLine("Converts the supplied formula or list of formulas, each separated by a line, to Polish notation.")
+        
+        Console.WriteLine()
+
+        Console.ForegroundColor <- ConsoleColor.Yellow
+        Console.WriteLine("\u001b[1mhelp\u001b[0m")
+        Console.ResetColor()
+        Console.WriteLine("Lists all commands. Specify a command to see more information about the given command.")
+
+    let helpProve () =
+        Console.WriteLine("\u001b[1mProve\u001b[0m")
+        Console.WriteLine("------------------------------")
+        Console.WriteLine("Writes a proof for a given formula/argument")
+        Console.WriteLine()
+
+        Console.WriteLine("\u001b[1mExample Usage\u001b[0m")
+        Console.WriteLine()
+        Console.WriteLine("./frosty prove 'p -> p'")
+        Console.WriteLine("Explanation: attempts to prove the formula P ⇒ P is a tautology")
+        Console.WriteLine()
+        Console.WriteLine("./frosty prove p->q q->r p->r")
+        Console.WriteLine("Explanation: attempts to prove that the following arugment is valid")
+        Console.WriteLine("1. P ⇒ Q")
+        Console.WriteLine("2. Q ⇒ R")
+        Console.WriteLine("3. P ⇒ R")
+        Console.WriteLine()
+        Console.WriteLine("Note that formulas with white-space must be placed in quotes.")
+        Console.WriteLine()
+
+        // Print "Allowed Symbols" in bold
+        Console.WriteLine("\u001b[1mAllowed Symbols\u001b[0m")
+        
+        // Set the console text color to yellow for the symbols
+        Console.ForegroundColor <- ConsoleColor.Yellow
+        Console.WriteLine("Negation: `¬`, `~`, `!`, `-`")
+        Console.WriteLine("Conjunction: `∧`, `&`, `&&`")
+        Console.WriteLine("Disjunction: `∨`, `|`, `||`")
+        Console.WriteLine("Material Conditional: `⇒`, `→`, `⊃`, `->`, `-->`")
+        Console.WriteLine("Material Biconditional: `⇔`, `⟷`, `≡`, `<->`, `<-->`")
+        Console.ResetColor()
+
+        // Notify about allowed symbols
+        Console.WriteLine("Any of the symbols listed above are allowed, in addition to parentheses, brackets, spaces, and letters.")
+        Console.WriteLine()
+
+        // Print "Additional Information about Syntax" in bold
+        Console.WriteLine("\u001b[1mAdditional Information about Syntax\u001b[0m")
+        
+        // Write numbered points with normal text
+        Console.WriteLine("1. Formulas should be written in infix notation.")
+        Console.WriteLine("2. The truth-functional operators obey the standard precedence rules. The above operators are listed according to their relative precedence (descending).")
+        Console.WriteLine("3. Each of the above binary operators is right-associative. For example, `P ⇒ Q ⇒ P` will be treated as `P ⇒ (Q ⇒ P)`.")
+
+    let proveCommand (args: List<string>) =
+        try
+            let resp = ((fun (x, y) -> prove y x) << firstAndLast << parsePremisesChar) args
+            printf "%s" resp
+        with
+        | exn ->
+            printfn "%s" exn.Message
 
     [<EntryPoint>]
-    let main argv =
-        let mConfig = loadConfig()
-        let config = DiscordConfiguration ()
-        config.Token <- mConfig.token
-        config.TokenType <- TokenType.Bot
-        config.AutoReconnect <- true
-        
-        let client = new DiscordClient(config)
+    let main (argv: string array) =
+        if argv.Length > 1 then
+            let command: string = argv.[0]
+            let remainingArgs: List<string> = List.ofArray (Array.skip 1 argv)
+            match command with
+            | "prove" ->
+                proveCommand remainingArgs
+            | "polish" ->
+                printf "%s" <| (polishPrintMany << parsePremisesChar) remainingArgs
+            | "format" ->
+                printfn "%s" <| (prettyPrintMany << parsePremisesChar) remainingArgs
+            | "help" ->
+                match argv.[1] with
+                | "prove" ->
+                    helpProve()
+                | "polish" ->
+                    helpPolish()
+                | "format" ->
+                    helpFormat()
+                | _ ->
+                    properUsage()
+            | _ ->
+                printfn "%s" "Incorrect Usage."
+                properUsage()
 
-        let commandConfig = CommandsNextConfiguration ()
-        commandConfig.StringPrefixes <- [mConfig.prefix]
-
-        let commands = client.UseCommandsNext(commandConfig)
-        commands.RegisterCommands<FrostyCommands>()
-
-        client.ConnectAsync(new DiscordActivity("?help", ActivityType.ListeningTo))
-        |> Async.AwaitTask
-        |> Async.RunSynchronously
-        
-        Task.Delay(-1)
-        |> Async.AwaitTask
-        |> Async.RunSynchronously
+        else
+            properUsage()
         0 // return an integer exit code
