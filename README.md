@@ -1,5 +1,7 @@
 ## A functionally-programmed theorem prover with logic-related functionality
 
+(Run ./frosty in the release directory, or publish the app yourself with dotnet publish) 
+
 ## Commands
 
 ### `prove`
