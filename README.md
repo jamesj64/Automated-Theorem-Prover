@@ -2,23 +2,19 @@
 
 ## Commands
 
-### `?prove`
+### `prove`
 
 Writes a natural deduction proof of the inputted formula/argument
 
-### `?format`
+### `format`
 
 Formats the supplied formula or list of formulas, each separated by a line.
 
-### `?polish`
+### `polish`
 
 Converts the supplied formula or list of formulas, each separated by a line, to Polish notation.
 
-### `?ping`
-
-Responds with socket latency
-
-### `?help`
+### `help`
 
 Lists all commands. Specify a command to see more information about the given command.
 
@@ -70,4 +66,3 @@ Parentheses, brackets, spaces, and letters are also allowed.
 1. Formulas should be written in infix notation.
 2. The truth-functional operators obey the standard precedence rules. The above operators are listed according to their relative precedence (descending).
 3. Each of the above binary operators is right-associative. For example, `P ⇒ Q ⇒ P` will be treated as `P ⇒ (Q ⇒ P)`.
-4. Each formula should be separated by a line. The first formula may be on the same line as the prove command.
