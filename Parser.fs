@@ -53,7 +53,7 @@ module Parser =
                 | And(x, y) -> $"({prettyPrintF x} ∧ {prettyPrintF y})"
                 | Or(x, y) -> $"({prettyPrintF x} ∨ {prettyPrintF y})"
                 | Implies(x, y) -> $"({prettyPrintF x} ⇒ {prettyPrintF y})"
-                | Iff(x, y) -> $"({prettyPrintF x} ⇔ {prettyPrintF y})"
+                | Iff(x, y) -> $"({prettyPrintF x} <-> {prettyPrintF y})"
                 | Not x -> $"¬{prettyPrintF x}"
                 | Atom x -> x
         formula |> (prettyPrintF >> fun x -> if x.[0] = '(' then x.Substring(1, x.Length - 2) else x)

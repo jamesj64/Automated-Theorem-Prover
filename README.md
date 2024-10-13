@@ -34,14 +34,9 @@ An example of a proof of `P ⇒ P`:
 
 Two examples of proper usage:
 
-`?prove P -> Q`
+`./frosty prove 'P -> Q'`
 
-```
-?prove
-P ∨ Q
-P ⇒ Q
-Q
-```
+`./frosty prove 'P ∨ Q' 'P ⇒ Q' 'Q'`
 
 In the first example, it will attempt to write a proof of `P ⇒ Q` or `⊢ P ⇒ Q`. However, since `P ⇒ Q` is invalid, it will instead provide a countermodel.
 Frosty always chooses the final formula to be the goal/conclusion of a proof. So, in the second example, it will try to prove the following inference `P ∨ Q, P ⇒ Q ⊢ Q`. Since it is valid, it will send a natural deduction proof of the supplied inference.
@@ -66,3 +61,4 @@ Parentheses, brackets, spaces, and letters are also allowed.
 1. Formulas should be written in infix notation.
 2. The truth-functional operators obey the standard precedence rules. The above operators are listed according to their relative precedence (descending).
 3. Each of the above binary operators is right-associative. For example, `P ⇒ Q ⇒ P` will be treated as `P ⇒ (Q ⇒ P)`.
+4. You should place each formula in quotes so they are parsed correctly.

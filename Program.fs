@@ -18,7 +18,7 @@ module Program =
         Console.WriteLine("\u001b[1mformat\u001b[0m")
         Console.ResetColor()
         Console.WriteLine("Formats the supplied formula or list of formulas, each separated by a line.")
-        
+
     let properUsage () =
         // Use Console.WriteLine to display "Commands" in bold.
         Console.WriteLine("\u001b[1mCommands\u001b[0m")
@@ -62,13 +62,13 @@ module Program =
         Console.WriteLine("./frosty prove 'p -> p'")
         Console.WriteLine("Explanation: attempts to prove the formula P ⇒ P is a tautology")
         Console.WriteLine()
-        Console.WriteLine("./frosty prove p->q q->r p->r")
+        Console.WriteLine("./frosty prove 'p->q' 'q->r' 'p->r'")
         Console.WriteLine("Explanation: attempts to prove that the following arugment is valid")
         Console.WriteLine("1. P ⇒ Q")
         Console.WriteLine("2. Q ⇒ R")
         Console.WriteLine("3. P ⇒ R")
         Console.WriteLine()
-        Console.WriteLine("Note that formulas with white-space must be placed in quotes.")
+        Console.WriteLine("Note that formulas should be placed in quotes.")
         Console.WriteLine()
 
         // Print "Allowed Symbols" in bold
@@ -105,6 +105,7 @@ module Program =
 
     [<EntryPoint>]
     let main (argv: string array) =
+        Console.OutputEncoding <- Text.Encoding.UTF8
         if argv.Length > 1 then
             let command: string = argv.[0]
             let remainingArgs: List<string> = List.ofArray (Array.skip 1 argv)
