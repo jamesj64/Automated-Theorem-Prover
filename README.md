@@ -1,4 +1,4 @@
-## Frosty - A functionally-programmed theorem prover
+## Frosty - A human-friendly theorem prover
 
 (Run ./frosty in the release directory, or publish the app yourself with dotnet publish) 
 
